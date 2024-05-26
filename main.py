@@ -3,11 +3,12 @@ import re
 # 词法分析器
 def lexer(input_code):
     tokens = []
-    for line in input_code.strip().split('\n'):
-        parts = line.strip().split()
+    for line in input_code.strip().split('\n'):  # 逐行读取输入代码
+        parts = line.strip().split()  # 分割每行的内容
         if len(parts) == 3:
             token_type = parts[1]
             token_value = parts[2]
+            # 根据不同类型的标记进行处理
             if token_type.startswith('INT'):
                 token_value = int(token_value)
                 token_type = 'NUMBER'
@@ -58,7 +59,7 @@ def lexer(input_code):
             elif token_type == 'RR_BRAC':
                 token_value = ')'
                 token_type = 'RPAREN'
-            tokens.append((token_type, token_value))
+            tokens.append((token_type, token_value))  # 添加处理后的标记到列表中
     return tokens
 
 # 语法分析器和三地址代码生成器
@@ -69,6 +70,7 @@ class Parser:
         self.temp_count = 0
         self.label_count = 0
         self.code = []
+        self.generated_labels = set()  # 用于跟踪已生成的标签
 
     def new_temp(self):
         self.temp_count += 1
@@ -80,6 +82,12 @@ class Parser:
 
     def gen(self, code):
         self.code.append(code)
+
+    def gen_unique(self, code):
+        label = code.split(':')[0]
+        if label not in self.generated_labels:  # 确保标签唯一
+            self.code.append(code)
+            self.generated_labels.add(label)
 
     def current_token(self):
         if self.current_token_index < len(self.tokens):
@@ -113,17 +121,17 @@ class Parser:
             self.C(C_true, C_false)
             if self.current_token()[0] == 'THEN':
                 self.next_token()
-                self.gen(f'{C_true}:')
+                self.gen_unique(f'{C_true}:')
                 self.S()
                 self.gen(f'goto {S_next}')
                 if self.current_token()[0] == 'ELSE':
                     self.next_token()
-                    self.gen(f'{C_false}:')
+                    self.gen_unique(f'{C_false}:')
                     self.S()
-                    self.gen(f'{S_next}:')
+                    self.gen_unique(f'{S_next}:')
                 else:
-                    self.gen(f'{C_false}:')
-                    self.gen(f'{S_next}:')
+                    self.gen_unique(f'{C_false}:')
+                    self.gen_unique(f'{S_next}:')
             else:
                 raise SyntaxError("Missing then")
         elif token_type == 'WHILE':
@@ -131,14 +139,14 @@ class Parser:
             S_begin = self.new_label()
             C_true = self.new_label()
             C_false = self.new_label()
-            self.gen(f'{S_begin}:')
+            self.gen_unique(f'{S_begin}:')
             self.C(C_true, C_false)
             if self.current_token()[0] == 'DO':
                 self.next_token()
-                self.gen(f'{C_true}:')
+                self.gen_unique(f'{C_true}:')
                 self.S()
                 self.gen(f'goto {S_begin}')
-                self.gen(f'{C_false}:')
+                self.gen_unique(f'{C_false}:')
             else:
                 raise SyntaxError("Missing do")
         elif token_type == 'LPAREN':

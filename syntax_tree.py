@@ -3,11 +3,12 @@ import re
 # 词法分析器
 def lexer(input_code):
     tokens = []
-    for line in input_code.strip().split('\n'):
-        parts = line.strip().split()
+    for line in input_code.strip().split('\n'):  # 逐行读取输入代码
+        parts = line.strip().split()  # 分割每行的内容
         if len(parts) == 3:
             token_type = parts[1]
             token_value = parts[2]
+            # 根据不同类型的标记进行处理
             if token_type.startswith('INT'):
                 token_value = int(token_value)
                 token_type = 'NUMBER'
@@ -58,7 +59,7 @@ def lexer(input_code):
             elif token_type == 'RR_BRAC':
                 token_value = ')'
                 token_type = 'RPAREN'
-            tokens.append((token_type, token_value))
+            tokens.append((token_type, token_value))  # 添加处理后的标记到列表中
     return tokens
 
 # 语法树节点类

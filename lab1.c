@@ -2025,7 +2025,7 @@ double real10_analyzer(char* text, int len){
 }
 
 int main(){
-    yyin=fopen("lab1_testset_right.txt","r");
+    yyin=fopen("lab1_testset_wrong.txt","r");
     yyout=fopen("lab1_output.txt","w");
     int i=0;
     yylex();
