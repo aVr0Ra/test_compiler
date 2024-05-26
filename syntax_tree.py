@@ -61,25 +61,27 @@ def lexer(input_code):
             tokens.append((token_type, token_value))
     return tokens
 
-# 语法分析器和三地址代码生成器
+# 语法树节点类
+class ASTNode:
+    def __init__(self, token_type, token_value):
+        self.token_type = token_type
+        self.token_value = token_value
+        self.children = []
+
+    def add_child(self, node):
+        self.children.append(node)
+
+    def __repr__(self, level=0):
+        ret = "\t" * level + repr((self.token_type, self.token_value)) + "\n"
+        for child in self.children:
+            ret += child.__repr__(level + 1)
+        return ret
+
+# 语法分析器
 class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
         self.current_token_index = 0
-        self.temp_count = 0
-        self.label_count = 0
-        self.code = []
-
-    def new_temp(self):
-        self.temp_count += 1
-        return f't{self.temp_count}'
-
-    def new_label(self):
-        self.label_count += 1
-        return f'L{self.label_count}'
-
-    def gen(self, code):
-        self.code.append(code)
 
     def current_token(self):
         if self.current_token_index < len(self.tokens):
@@ -91,59 +93,54 @@ class Parser:
         self.current_token_index += 1
 
     def parse(self):
-        while self.current_token_index < len(self.tokens):
-            self.S()
-        return self.code
+        self.ast = self.S()
+        return self.ast
 
     def S(self):
         token_type, token_value = self.current_token()
+        node = ASTNode(token_type, token_value)
         print(f"Processing statement: {token_type}, {token_value}")  # 调试信息
         if token_type == 'ID':
             id_place = token_value
             self.next_token()
             if self.current_token()[0] == 'ASSIGN':
+                node.add_child(ASTNode('ASSIGN', '='))
                 self.next_token()
                 E_place = self.E()
-                self.gen(f'{id_place} := {E_place}')
+                node.add_child(E_place)
         elif token_type == 'IF':
             self.next_token()
-            C_true = self.new_label()
-            C_false = self.new_label()
-            S_next = self.new_label()
-            self.C(C_true, C_false)
+            node.add_child(ASTNode('IF', 'if'))
+            condition_node = self.C()
+            node.add_child(condition_node)
             if self.current_token()[0] == 'THEN':
                 self.next_token()
-                self.gen(f'{C_true}:')
-                self.S()
-                self.gen(f'goto {S_next}')
+                then_node = ASTNode('THEN', 'then')
+                node.add_child(then_node)
+                then_node.add_child(self.S())
                 if self.current_token()[0] == 'ELSE':
                     self.next_token()
-                    self.gen(f'{C_false}:')
-                    self.S()
-                    self.gen(f'{S_next}:')
-                else:
-                    self.gen(f'{C_false}:')
-                    self.gen(f'{S_next}:')
+                    else_node = ASTNode('ELSE', 'else')
+                    node.add_child(else_node)
+                    else_node.add_child(self.S())
             else:
                 raise SyntaxError("Missing then")
         elif token_type == 'WHILE':
             self.next_token()
-            S_begin = self.new_label()
-            C_true = self.new_label()
-            C_false = self.new_label()
-            self.gen(f'{S_begin}:')
-            self.C(C_true, C_false)
+            node.add_child(ASTNode('WHILE', 'while'))
+            condition_node = self.C()
+            node.add_child(condition_node)
             if self.current_token()[0] == 'DO':
                 self.next_token()
-                self.gen(f'{C_true}:')
-                self.S()
-                self.gen(f'goto {S_begin}')
-                self.gen(f'{C_false}:')
+                do_node = ASTNode('DO', 'do')
+                node.add_child(do_node)
+                do_node.add_child(self.S())
             else:
                 raise SyntaxError("Missing do")
         elif token_type == 'LPAREN':
             self.next_token()
-            self.E()
+            expr_node = self.E()
+            node.add_child(expr_node)
             if self.current_token()[0] == 'RPAREN':
                 self.next_token()
             else:
@@ -152,53 +149,65 @@ class Parser:
             self.next_token()
         else:
             raise SyntaxError(f"Invalid statement: {token_type} at index {self.current_token_index}")
+        return node
 
-    def C(self, true_label, false_label):
+    def C(self):
         E1_place = self.E()
+        condition_node = ASTNode('CONDITION', 'condition')
+        condition_node.add_child(E1_place)
         if self.current_token()[0] == 'COMPARE' or (self.current_token()[0] == 'ASSIGN' and self.current_token()[1] == '='):
             op = self.current_token()[1]
             self.next_token()
             E2_place = self.E()
-            self.gen(f'if {E1_place} {op} {E2_place} goto {true_label}')
-            self.gen(f'goto {false_label}')
+            condition_node.add_child(ASTNode('OP', op))
+            condition_node.add_child(E2_place)
         else:
             raise SyntaxError(f"Invalid comparison operator: {self.current_token()} at index {self.current_token_index}")
+        return condition_node
 
     def E(self):
         T_place = self.T()
+        expr_node = T_place
         while self.current_token()[0] == 'OP' and self.current_token()[1] in ['+', '-']:
             op = self.current_token()[1]
             self.next_token()
             T1_place = self.T()
-            E_place = self.new_temp()
-            self.gen(f'{E_place} := {T_place} {op} {T1_place}')
-            T_place = E_place
-        return T_place
+            expr_node = ASTNode('EXPR', 'expr')
+            expr_node.add_child(T_place)
+            expr_node.add_child(ASTNode('OP', op))
+            expr_node.add_child(T1_place)
+            T_place = expr_node
+        return expr_node
 
     def T(self):
         F_place = self.F()
+        term_node = F_place
         while self.current_token()[0] == 'OP' and self.current_token()[1] in ['*', '/']:
             op = self.current_token()[1]
             self.next_token()
             F1_place = self.F()
-            T_place = self.new_temp()
-            self.gen(f'{T_place} := {F_place} {op} {F1_place}')
-            F_place = T_place
-        return F_place
+            term_node = ASTNode('TERM', 'term')
+            term_node.add_child(F_place)
+            term_node.add_child(ASTNode('OP', op))
+            term_node.add_child(F1_place)
+            F_place = term_node
+        return term_node
 
     def F(self):
         token_type, token_value = self.current_token()
+        node = ASTNode(token_type, token_value)
         if token_type == 'LPAREN':
             self.next_token()
-            E_place = self.E()
+            expr_node = self.E()
+            node.add_child(expr_node)
             if self.current_token()[0] == 'RPAREN':
                 self.next_token()
-                return E_place
+                return node
             else:
                 raise SyntaxError("Missing closing parenthesis")
         elif token_type in ['ID', 'NUMBER', 'HEX']:
             self.next_token()
-            return token_value
+            return node
         else:
             raise SyntaxError(f"Invalid factor: {self.current_token()} at index {self.current_token_index}")
 
@@ -216,14 +225,13 @@ def main():
     for token in tokens:
         print(token)
 
-    # 语法分析和三地址代码生成
+    # 语法分析
     parser = Parser(tokens)
-    code = parser.parse()
+    ast = parser.parse()
 
-    # 输出三地址代码
-    print("Three Address Code:")
-    for line in code:
-        print(line)
+    # 输出语法树
+    print("Syntax Tree:")
+    print(ast)
 
 if __name__ == "__main__":
     main()

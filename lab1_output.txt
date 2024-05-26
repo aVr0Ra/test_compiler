@@ -1,34 +1,34 @@
-1	WHILE	-
- 2	LR_BRAC	-
-3	ID	a3
-4	PLUS	-
-5	INT10	15
-6	RR_BRAC	-
-7	GT	-
-8	INT16	10
- 9	DO	-
- 10	IF	-
- 11	ID	x2
- 12	EQ	-
- 13	INT8	7
- 14	THEN	-
- 15	WHILE	-
- 16	ID	y
-17	LT	-
-18	ID	z
- 19	DO	-
- 20	ID	y
- 21	EQ	-
- 22	ID	x
- 23	MULTI	-
- 24	ID	y
- 25	RDIV	-
- 26	ID	z
-27	SEMIC	-
- 28	ID	c
-29	EQ	-
-30	ID	b
-31	MULTI	-
-32	ID	c
-33	PLUS	-
-34	SEMIC	-
+1	WHILE		-
+2	LR_BRAC		-
+3	IDN		a3
+4	PLUS		-
+5	INT10		15
+6	RR_BRAC		-
+7	GT		-
+8	INT16		10
+9	DO		-
+10	IF		-
+11	IDN		x2
+12	EQ		-
+13	INT8		7
+14	THEN		-
+15	WHILE		-
+16	IDN		y
+17	LT		-
+18	IDN		z
+19	DO		-
+20	IDN		y
+21	EQ		-
+22	IDN		x
+23	MULTI		-
+24	IDN		y
+25	RDIV		-
+26	IDN		z
+27	SEMIC		-
+28	IDN		c
+29	EQ		-
+30	IDN		b
+31	MULTI		-
+32	IDN		c
+33	PLUS		-
+34	IDN		d
