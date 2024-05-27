@@ -1,0 +1,85 @@
+Tokens:
+('WHILE', 'while')
+('LPAREN', '(')
+('ID', 'a3')
+('OP', '+')
+('NUMBER', 15)
+('RPAREN', ')')
+('COMPARE', '>')
+('NUMBER', 10)
+('DO', 'do')
+('IF', 'if')
+('ID', 'x2')
+('ASSIGN', '=')
+('NUMBER', 7)
+('THEN', 'then')
+('WHILE', 'while')
+('ID', 'y')
+('COMPARE', '<')
+('ID', 'z')
+('DO', 'do')
+('ID', 'y')
+('ASSIGN', '=')
+('ID', 'x')
+('OP', '*')
+('ID', 'y')
+('OP', '/')
+('ID', 'z')
+('END', ';')
+('ID', 'c')
+('ASSIGN', '=')
+('ID', 'b')
+('OP', '*')
+('ID', 'c')
+('OP', '+')
+('ID', 'd')
+('END', ';')
+Three Address Code:
+L1:
+t1 := a3 + 15
+if t1 > 10 goto L2
+goto L3
+L2:
+if x2 = 7 goto L4
+goto L5
+L4:
+L7:
+if y < z goto L8
+goto L9
+L8:
+t2 := x * y
+t3 := t2 / z
+y := t3
+goto L7
+L9:
+goto L6
+L5:
+L6:
+goto L1
+L3:
+t4 := b * c
+t5 := t4 + d
+c := t5
+
+
+
+Processed Code:
+L1:
+	t1 := a3 + 15
+	if t1 > 10 goto L2
+	goto L3
+L2:
+	if x2 = 7 goto L4
+	goto L1
+L4:
+	if y < z goto L5
+	goto L1
+L5:
+	t2 := x * y
+	t3 := t2 / z
+	y := t3
+	goto L4
+L3:
+	t4 := b * c
+	t5 := t4 + d
+	c := t5

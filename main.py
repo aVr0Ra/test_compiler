@@ -1,16 +1,38 @@
-import re
+import subprocess
 
-# 词法分析器
+
+def run_lexer():
+    try:
+        # 编译lab1.c
+        compile_result = subprocess.run(['gcc', 'lab1.c', '-o', 'lab1'], check=True, timeout=30)
+        print("Compilation succeeded.")
+
+        # 运行编译生成的可执行文件
+        run_result = subprocess.run(['./lab1'], check=True, timeout=30)
+        print("Execution succeeded.")
+    except subprocess.CalledProcessError as e:
+        print(f"An error occurred during compilation or execution: {e}")
+    except subprocess.TimeoutExpired:
+        print("Compilation or execution timed out.")
+
+def read_lab1_output():
+    # 读取lab1_output.txt文件的内容
+    with open('lab1_output.txt', 'r') as file:
+        return file.read()
+
+
 def lexer(input_code):
     tokens = []
-    for line in input_code.strip().split('\n'):  # 逐行读取输入代码
-        parts = line.strip().split()  # 分割每行的内容
+    for line in input_code.strip().split('\n'):
+        parts = line.strip().split()
         if len(parts) == 3:
             token_type = parts[1]
             token_value = parts[2]
-            # 根据不同类型的标记进行处理
             if token_type.startswith('INT'):
                 token_value = int(token_value)
+                token_type = 'NUMBER'
+            elif token_type == 'REAL10' or token_type == 'REAL16':
+                token_value = float(token_value)
                 token_type = 'NUMBER'
             elif token_type == 'IDN':
                 token_type = 'ID'
@@ -59,10 +81,11 @@ def lexer(input_code):
             elif token_type == 'RR_BRAC':
                 token_value = ')'
                 token_type = 'RPAREN'
-            tokens.append((token_type, token_value))  # 添加处理后的标记到列表中
+
+            tokens.append((token_type, token_value))
     return tokens
 
-# 语法分析器和三地址代码生成器
+
 class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
@@ -70,7 +93,7 @@ class Parser:
         self.temp_count = 0
         self.label_count = 0
         self.code = []
-        self.generated_labels = set()  # 用于跟踪已生成的标签
+        self.generated_labels = set()
 
     def new_temp(self):
         self.temp_count += 1
@@ -85,7 +108,7 @@ class Parser:
 
     def gen_unique(self, code):
         label = code.split(':')[0]
-        if label not in self.generated_labels:  # 确保标签唯一
+        if label not in self.generated_labels:
             self.code.append(code)
             self.generated_labels.add(label)
 
@@ -100,12 +123,13 @@ class Parser:
 
     def parse(self):
         while self.current_token_index < len(self.tokens):
+            print(f"Current Token: {self.current_token()}")
             self.S()
         return self.code
 
     def S(self):
         token_type, token_value = self.current_token()
-        print(f"Processing statement: {token_type}, {token_value}")  # 调试信息
+        print(f"Processing statement: {token_type}, {token_value}")
         if token_type == 'ID':
             id_place = token_value
             self.next_token()
@@ -113,6 +137,8 @@ class Parser:
                 self.next_token()
                 E_place = self.E()
                 self.gen(f'{id_place} := {E_place}')
+            elif self.current_token()[0] == 'SEMIC':
+                self.next_token()
         elif token_type == 'IF':
             self.next_token()
             C_true = self.new_label()
@@ -163,14 +189,15 @@ class Parser:
 
     def C(self, true_label, false_label):
         E1_place = self.E()
-        if self.current_token()[0] == 'COMPARE' or (self.current_token()[0] == 'ASSIGN' and self.current_token()[1] == '='):
+        if self.current_token()[0] in ['COMPARE', 'ASSIGN']:
             op = self.current_token()[1]
             self.next_token()
             E2_place = self.E()
             self.gen(f'if {E1_place} {op} {E2_place} goto {true_label}')
             self.gen(f'goto {false_label}')
         else:
-            raise SyntaxError(f"Invalid comparison operator: {self.current_token()} at index {self.current_token_index}")
+            raise SyntaxError(
+                f"Invalid comparison operator: {self.current_token()} at index {self.current_token_index}")
 
     def E(self):
         T_place = self.T()
@@ -204,34 +231,144 @@ class Parser:
                 return E_place
             else:
                 raise SyntaxError("Missing closing parenthesis")
-        elif token_type in ['ID', 'NUMBER', 'HEX']:
+        elif token_type in ['ID', 'NUMBER']:
             self.next_token()
             return token_value
         else:
             raise SyntaxError(f"Invalid factor: {self.current_token()} at index {self.current_token_index}")
+def process_three_address_code(tac):
+    # 如果 tac 是列表，将其转换为字符串
+    if isinstance(tac, list):
+        tac = '\n'.join(tac)
 
-# 主函数
-def main():
-    # 读取输入文件
-    with open('lab1_output.txt', 'r') as file:
-        input_code = file.read()
+    # 继续处理代码
+    lines = tac.strip().split('\n')
 
-    # 词法分析
-    tokens = lexer(input_code)
+    # 存储原始标签到新标签的映射
+    label_map = {}
+    new_lines = []
+    previous_label = None
+
+    # 第一次遍历，移除冗余标签
+    for line in lines:
+        stripped = line.strip()
+
+        if stripped.endswith(':'):
+            label = stripped[:-1]
+            if previous_label is not None:
+                # 发现连续的两个标签，将当前标签映射到之前的标签
+                label_map[label] = previous_label
+                #print(f"Removing redundant label: {label}")
+            else:
+                new_lines.append(line)
+                previous_label = label  # 更新之前的标签
+        else:
+            # 遇到非标签行，重置之前的标签
+            previous_label = None
+            new_lines.append(line)
+
+    # 第二次遍历，处理标签后面跟随的`goto`语句
+    i = 0
+    while i < len(new_lines) - 1:
+        current_line = new_lines[i].strip()
+        next_line = new_lines[i + 1].strip()
+
+        if current_line.endswith(':') and next_line.startswith('goto'):
+            label = current_line[:-1]
+            target_label = next_line.split()[-1]
+
+            # 添加映射
+            label_map[label] = target_label
+            #print(f"Replacing goto {label} with goto {target_label} and removing {label}: and {next_line}")
+
+            # 移除当前标签和接下来的`goto`语句
+            new_lines.pop(i)
+            new_lines.pop(i)
+        else:
+            i += 1
+
+    # 解析标签映射的函数
+    def resolve_label(label):
+        seen_labels = set()
+        while label in label_map and label not in seen_labels:
+            seen_labels.add(label)
+            label = label_map[label]
+        return label
+
+    # 最后一次遍历，根据标签映射调整`goto`语句
+    final_lines = []
+    for line in new_lines:
+        if 'goto' in line:
+            parts = line.split()
+            label = resolve_label(parts[-1])
+            final_lines.append(' '.join(parts[:-1]) + ' ' + label)
+        else:
+            final_lines.append(line)
+
+    # 在最终的行中识别所有剩余的标签
+    labels = set()
+    for line in final_lines:
+        stripped = line.strip()
+        if stripped.endswith(':'):
+            labels.add(stripped[:-1])
+
+    # 创建唯一的标签的排序列表
+    sorted_labels = sorted(labels)
+    new_label_mapping = {label: f"L{i+1}" for i, label in enumerate(sorted_labels)}
+
+    # 最后一遍遍历，用连续的标签替换原有标签
+    final_lines_sequential = []
+    for line in final_lines:
+        if line.strip().endswith(':'):
+            label = line.strip()[:-1]
+            final_lines_sequential.append(new_label_mapping[label] + ':')
+        elif 'goto' in line:
+            parts = line.split()
+            label = parts[-1]
+            final_lines_sequential.append('\t' + ' '.join(parts[:-1]) + ' ' + new_label_mapping[label])
+        else:
+            final_lines_sequential.append('\t' + line)  # 非标签行前面加一个tab
+
+    return '\n'.join(final_lines_sequential)
+
+def analyze_and_generate_code(tokens):
+    if not tokens:
+        with open('output.txt', 'w') as file:
+            file.write("No tokens found. Please check the input file.\n")
+        return
 
     # 输出词法分析结果
-    print("Tokens:")
-    for token in tokens:
-        print(token)
+    with open('output.txt', 'w') as file:
+        file.write("Tokens:\n")
+        for token in tokens:
+            file.write(f"{token}\n")
 
     # 语法分析和三地址代码生成
     parser = Parser(tokens)
     code = parser.parse()
 
     # 输出三地址代码
-    print("Three Address Code:")
-    for line in code:
-        print(line)
+    with open('output.txt', 'a') as file:
+        file.write("Three Address Code:\n")
+        for line in code:
+            file.write(f"{line}\n")
+
+        file.write("\n\n\nProcessed Code:\n")
+        processed_code = process_three_address_code(code)
+        file.write(f"{processed_code}\n")
+
+def main():
+    # 运行lab1.exe
+    run_lexer()
+
+    # 读取lab1_output.txt文件的内容
+    input_code = read_lab1_output()
+
+    # 词法分析
+    tokens = lexer(input_code)
+
+    analyze_and_generate_code(tokens)
+
 
 if __name__ == "__main__":
     main()
